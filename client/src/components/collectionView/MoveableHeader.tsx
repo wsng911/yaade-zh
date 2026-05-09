@@ -1,0 +1,933 @@
+import { AddIcon, CopyIcon, DeleteIcon, LinkIcon } from '@chakra-ui/icons';
+import {
+  IconButton,
+  Input,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuList,
+  Select,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
+  Textarea,
+  useClipboard,
+  useColorMode,
+  useDisclosure,
+  useToast,
+} from '@chakra-ui/react';
+import type { Identifier } from 'dnd-core';
+import { Dispatch, useContext, useMemo, useRef, useState } from 'react';
+import { useDrag, useDrop } from 'react-dnd';
+import {
+  VscCode,
+  VscEllipsis,
+  VscFileCode,
+  VscFolder,
+  VscFolderOpened,
+} from 'react-icons/vsc';
+
+import api from '../../api';
+import { UserContext } from '../../context';
+import Collection, { SidebarCollection } from '../../model/Collection';
+import { RestRequest, WebsocketRequest } from '../../model/Request';
+import Script from '../../model/Script';
+import { CollectionsAction, CollectionsActionType } from '../../state/collections';
+import { cn, errorToast, successToast } from '../../utils';
+import { parseCurlCommand } from '../../utils/curl';
+import { DragItem, DragTypes } from '../../utils/dnd';
+import BasicModal from '../basicModal';
+import GroupsInput from '../groupsInput';
+import styles from './MoveableHeader.module.css';
+import { RequestDragItem } from './MoveableRequest';
+import { ScriptDragItem } from './MoveableScript';
+
+type MoveableHeaderProps = {
+  collection: SidebarCollection;
+  currentCollectionId?: number;
+  currentRequestId?: number;
+  selectCollection: any;
+  selectRequest: any;
+  selectScript: any;
+  index: number;
+  duplicateCollection: (id: number, newName: string) => void;
+  dispatchCollections: Dispatch<CollectionsAction>;
+  moveCollection: (dragIndex: number, hoverIndex: number, newParentId?: number) => void;
+  moveRequest: (id: number, newRank: number, newCollectionId: number) => void;
+  moveScript: (id: number, newRank: number, newCollectionId: number) => void;
+  isCollectionDescendant: (collectionId: number, ancestorId: number) => boolean;
+};
+
+type MoveableHeaderState = {
+  name: string;
+  newRequestName: string;
+  importData: string;
+  currentModal: string;
+  newCollectionName: string;
+  groups: string[];
+  uploadFile: any;
+  basePath: string;
+  selectedImport: string;
+  newScriptName: string;
+};
+
+function calculateTopHoveredRank(
+  hoverIndex: number,
+  dragIndex: number,
+  hoverParentId?: number,
+  dragParentId?: number,
+) {
+  if (hoverParentId !== dragParentId) {
+    return hoverIndex;
+  }
+
+  return hoverIndex < dragIndex ? hoverIndex : hoverIndex - 1;
+}
+
+function calculateBottomHoveredRank(
+  hoverIndex: number,
+  dragIndex: number,
+  hoverParentId?: number,
+  dragParentId?: number,
+) {
+  if (hoverParentId !== dragParentId) {
+    return hoverIndex + 1;
+  }
+
+  return hoverIndex < dragIndex ? hoverIndex + 1 : hoverIndex;
+}
+
+function MoveableHeader({
+  collection,
+  currentCollectionId,
+  selectCollection,
+  selectRequest,
+  selectScript,
+  index,
+  duplicateCollection,
+  dispatchCollections,
+  moveCollection,
+  moveRequest,
+  moveScript,
+  isCollectionDescendant,
+}: MoveableHeaderProps) {
+  const { user } = useContext(UserContext);
+  const [state, setState] = useState<MoveableHeaderState>({
+    name: collection.name,
+    newRequestName: '',
+    currentModal: '',
+    importData: '',
+    newCollectionName: '',
+    groups: user?.data?.groups ?? [],
+    uploadFile: undefined,
+    basePath: '',
+    selectedImport: 'openapi',
+    newScriptName: '',
+  });
+  const id = collection.id;
+  const ref = useRef<HTMLDivElement>(null);
+  const initialRef = useRef(null);
+  const [isTopHovered, setIsTopHovered] = useState(false);
+  const [isMiddleHovered, setIsMiddleHovered] = useState(false);
+  const [isBottomHovered, setIsBottomHovered] = useState(false);
+  const { colorMode } = useColorMode();
+  const { onCopy } = useClipboard(`${window.location.origin}/#/${collection.id}`);
+  const toast = useToast();
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const headerVariants = useMemo(() => {
+    return currentCollectionId === collection.id ? ['selected'] : [];
+  }, [currentCollectionId, collection.id]);
+  const iconVariants = useMemo(() => {
+    return collection.open ? ['open'] : [];
+  }, [collection.open]);
+  const [{ handlerId }, drop] = useDrop<
+    DragItem,
+    void,
+    {
+      handlerId: Identifier | null;
+    }
+  >({
+    accept: DragTypes.COLLECTION,
+    hover(item, monitor) {
+      if (!ref.current || !monitor.isOver()) {
+        return;
+      }
+
+      if (isCollectionDescendant(item.id, id)) {
+        return;
+      }
+      if (!ref.current || !monitor || !item || item.id === id) {
+        return {
+          handlerId: null,
+          hoveredDownwards: false,
+          hoveredUpwards: false,
+        };
+      }
+
+      const hoverBoundingRect = ref.current.getBoundingClientRect();
+      const clientOffset = monitor.getClientOffset();
+      if (!clientOffset) {
+        return;
+      }
+      const hoverTopThirdBoundary =
+        (hoverBoundingRect.bottom - hoverBoundingRect.top) / 3;
+      const hoverBottomThirdBoundary =
+        ((hoverBoundingRect.bottom - hoverBoundingRect.top) / 3) * 2;
+
+      const hoverClientY = clientOffset.y - hoverBoundingRect.top;
+
+      const hoveredTop = hoverClientY < hoverTopThirdBoundary;
+      const hoveredMiddle =
+        hoverClientY >= hoverTopThirdBoundary && hoverClientY <= hoverBottomThirdBoundary;
+      const hoveredBottom = hoverClientY > hoverBottomThirdBoundary;
+
+      if (hoveredTop) {
+        const newRank = calculateTopHoveredRank(
+          index,
+          item.index,
+          collection.parentId,
+          item.parentId,
+        );
+        if (newRank === item.index && item.parentId === collection.parentId) {
+          return;
+        }
+      }
+
+      if (hoveredMiddle) {
+        if (collection.id === item.parentId) {
+          return;
+        }
+      }
+
+      if (hoveredBottom) {
+        // NOTE: this is a small UX improvement, because in this position it
+        // looks like will be moved into the hovered collection when in reality
+        // it is moved below it.
+        if (collection.open) {
+          return;
+        }
+        const newRank = calculateBottomHoveredRank(
+          index,
+          item.index,
+          collection.parentId,
+          item.parentId,
+        );
+        if (newRank === item.index && item.parentId === collection.parentId) {
+          return;
+        }
+      }
+
+      setIsTopHovered(hoveredTop);
+      setIsMiddleHovered(hoveredMiddle);
+      setIsBottomHovered(hoveredBottom);
+    },
+    collect(monitor) {
+      if (!ref.current || !monitor || !monitor.getItem() || monitor.getItem().id === id) {
+        setIsTopHovered(false);
+        setIsMiddleHovered(false);
+        setIsBottomHovered(false);
+        return {
+          handlerId: null,
+        };
+      }
+      if (!monitor.isOver()) {
+        setIsTopHovered(false);
+        setIsMiddleHovered(false);
+        setIsBottomHovered(false);
+      }
+      return {
+        handlerId: monitor.getHandlerId(),
+      };
+    },
+    drop(item) {
+      if (isTopHovered) {
+        const newRank = calculateTopHoveredRank(
+          index,
+          item.index,
+          collection.parentId,
+          item.parentId,
+        );
+        if (newRank === item.index && item.parentId === collection.parentId) {
+          return;
+        }
+        return moveCollection(item.id, newRank, collection.parentId);
+      } else if (isMiddleHovered) {
+        return moveCollection(item.id, 0, collection.id);
+      } else if (isBottomHovered) {
+        const newRank = calculateBottomHoveredRank(
+          index,
+          item.index,
+          collection.parentId,
+          item.parentId,
+        );
+        if (newRank === item.index && item.parentId === collection.parentId) {
+          return;
+        }
+        return moveCollection(item.id, newRank, collection.parentId);
+      }
+    },
+  });
+
+  const [{ handlerId: requestHandlerId, hovered }, dropRequest] = useDrop<
+    RequestDragItem,
+    void,
+    { handlerId: Identifier | null; hovered: boolean }
+  >({
+    accept: [DragTypes.REQUEST, DragTypes.SCRIPT],
+    collect(monitor) {
+      let hovered = false;
+      const item = monitor.getItem();
+      if (item && (item.type === DragTypes.REQUEST || item.type === DragTypes.SCRIPT)) {
+        hovered = monitor.isOver() && item.collectionId !== collection.id;
+      }
+      return {
+        handlerId: monitor.getHandlerId(),
+        hovered,
+      };
+    },
+    drop(item: RequestDragItem | ScriptDragItem) {
+      if (
+        !ref.current ||
+        (item.type !== DragTypes.REQUEST && item.type !== DragTypes.SCRIPT)
+      ) {
+        return;
+      }
+
+      // Don't do anything if it's the same collection
+      if (item.collectionId === collection.id) {
+        return;
+      }
+
+      if (item.type === DragTypes.REQUEST) {
+        moveRequest(item.id, 0, collection.id);
+      } else if (item.type === DragTypes.SCRIPT) {
+        moveScript(item.id, 0, collection.id);
+      }
+    },
+  });
+
+  const [{ isDragging }, drag] = useDrag({
+    type: DragTypes.COLLECTION,
+    item: () => {
+      return {
+        id,
+        index,
+        parentId: collection.parentId,
+        isOpen: collection.open,
+      };
+    },
+    collect: (monitor: any) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  });
+
+  const opacity = isDragging ? 0.5 : 1;
+  const boxShadow = useMemo(() => {
+    if (isBottomHovered) {
+      return '0 2px 0 var(--chakra-colors-green-500)';
+    }
+    if (isMiddleHovered) {
+      return '0 0 0 2px var(--chakra-colors-green-500)';
+    }
+    if (isTopHovered) {
+      return 'inset 0 2px 0 var(--chakra-colors-green-500)';
+    }
+    return 'none';
+  }, [isBottomHovered, isMiddleHovered, isTopHovered]);
+
+  drag(drop(ref));
+  dropRequest(ref);
+  const hoverClass = hovered ? styles.hovered : '';
+
+  function handleArrowClick() {
+    dispatchCollections({
+      type: CollectionsActionType.TOGGLE_OPEN_COLLECTION,
+      id: collection.id,
+    });
+  }
+
+  function handleOnKeyDown(e: any, action: any) {
+    if (e.key === 'Enter') {
+      action(e);
+    }
+  }
+
+  function onCloseClear() {
+    setState({
+      ...state,
+      newRequestName: '',
+      newCollectionName: '',
+      newScriptName: '',
+      importData: '',
+    });
+    onClose();
+  }
+
+  async function handleCreateRESTRequestClick() {
+    try {
+      let data = {};
+      if (state.importData) {
+        const request = parseCurlCommand(state.importData);
+        data = {
+          name: state.newRequestName,
+          method: request.method,
+          uri: request.url,
+          headers: Object.entries(request.header).map(([key, value]) => ({
+            key,
+            value,
+          })),
+          body: request.body,
+        };
+      } else {
+        data = {
+          name: state.newRequestName,
+          method: 'GET',
+        };
+      }
+      const response = await api.createRestRequest(collection.id, data);
+      const newRequest = (await response.json()) as RestRequest;
+
+      dispatchCollections({
+        type: CollectionsActionType.ADD_REQUEST,
+        request: newRequest,
+      });
+      selectRequest.current(newRequest.id);
+
+      onCloseClear();
+      successToast('请求已创建', toast);
+    } catch (e) {
+      console.error(e);
+      errorToast('请求创建失败', toast);
+    }
+  }
+
+  async function handleCreateWebsocketRequestClick() {
+    try {
+      const data = {
+        name: state.newRequestName,
+        method: 'GET',
+      };
+      const response = await api.createWebsocketRequest(collection.id, data);
+      const newRequest = (await response.json()) as WebsocketRequest;
+
+      dispatchCollections({
+        type: CollectionsActionType.ADD_REQUEST,
+        request: newRequest,
+      });
+      selectRequest.current(newRequest.id);
+
+      onCloseClear();
+      successToast('请求已创建', toast);
+    } catch (e) {
+      console.error(e);
+      errorToast('请求创建失败', toast);
+    }
+  }
+
+  async function handleCreateCollectionClick() {
+    try {
+      let response;
+      if (state.uploadFile) {
+        const data = new FormData();
+        data.append('File', state.uploadFile, 'file');
+
+        if (state.selectedImport === 'openapi') {
+          response = await api.importOpenApi(
+            state.basePath,
+            state.groups,
+            data,
+            collection.id,
+          );
+        } else {
+          response = await api.importPostman(state.groups, data, collection.id);
+        }
+      } else {
+        response = await api.createCollection(
+          state.newCollectionName,
+          state.groups,
+          collection.id,
+        );
+      }
+
+      if (response.status !== 200) throw new Error();
+      const newCollection = (await response.json()) as Collection;
+
+      dispatchCollections({
+        type: CollectionsActionType.ADD_COLLECTION,
+        collection: newCollection,
+      });
+
+      successToast('集合已创建并保存', toast);
+      onCloseClear();
+    } catch (e) {
+      errorToast('集合创建失败', toast);
+    }
+  }
+
+  async function handleCreateScriptClick() {
+    try {
+      const data = {
+        name: state.newScriptName,
+        script: '',
+        enabled: false,
+      };
+      const response = await api.createScript(collection.id, data);
+      const newScript = (await response.json()) as Script;
+
+      dispatchCollections({
+        type: CollectionsActionType.ADD_SCRIPT,
+        script: newScript,
+      });
+      selectScript.current(newScript.id);
+
+      onCloseClear();
+      successToast('请求已创建', toast);
+    } catch (e) {
+      console.error(e);
+      errorToast('请求创建失败', toast);
+    }
+  }
+
+  async function handleDeleteCollectionClick() {
+    try {
+      const response = await api.deleteCollection(collection.id);
+      if (response.status !== 200) throw new Error();
+
+      dispatchCollections({
+        type: CollectionsActionType.DELETE_COLLECTION,
+        id: collection.id,
+      });
+
+      onCloseClear();
+      successToast('集合已删除', toast);
+    } catch (e) {
+      errorToast('集合删除失败', toast);
+    }
+  }
+
+  // NOTE: Setting to null is a workaround for the modal not updating
+  // correctly on response scripts
+  const currentModal = !isOpen
+    ? null
+    : ((s: string) => {
+        switch (s) {
+          case 'newRestRequest':
+            return (
+              <BasicModal
+                isOpen={isOpen}
+                onClose={onCloseClear}
+                initialRef={initialRef}
+                heading="新建请求"
+                onClick={handleCreateRESTRequestClick}
+                isButtonDisabled={state.newRequestName === ''}
+                buttonText="创建"
+                buttonColor="green"
+              >
+                <Tabs
+                  isLazy
+                  colorScheme="green"
+                  display="flex"
+                  flexDirection="column"
+                  maxHeight="100%"
+                  h="100%"
+                >
+                  <TabList>
+                    <Tab>基础</Tab>
+                    <Tab>导入</Tab>
+                  </TabList>
+                  <TabPanels overflowY="auto" sx={{ scrollbarGutter: 'stable' }} h="100%">
+                    <TabPanel>
+                      <Input
+                        placeholder="名称"
+                        w="100%"
+                        borderRadius={20}
+                        backgroundColor={colorMode === 'light' ? 'white' : undefined}
+                        colorScheme="green"
+                        value={state.newRequestName}
+                        onChange={(e) =>
+                          setState({ ...state, newRequestName: e.target.value })
+                        }
+                        ref={initialRef}
+                      />
+                    </TabPanel>
+                    <TabPanel>
+                      <Select size="xs" value="curl" marginBottom={4}>
+                        <option value="curl">cURL</option>
+                      </Select>
+                      <Input
+                        placeholder="名称"
+                        w="100%"
+                        borderRadius={20}
+                        colorScheme="green"
+                        value={state.newRequestName}
+                        marginBottom={4}
+                        onChange={(e) =>
+                          setState({ ...state, newRequestName: e.target.value })
+                        }
+                      />
+                      <Textarea
+                        placeholder="cURL"
+                        value={state.importData}
+                        onChange={(e) =>
+                          setState({ ...state, importData: e.target.value })
+                        }
+                        height="150px"
+                        resize="none"
+                      />
+                    </TabPanel>
+                  </TabPanels>
+                </Tabs>
+              </BasicModal>
+            );
+          case 'newWebsocketRequest':
+            return (
+              <BasicModal
+                isOpen={isOpen}
+                onClose={onCloseClear}
+                initialRef={initialRef}
+                heading="新建请求"
+                onClick={handleCreateWebsocketRequestClick}
+                isButtonDisabled={state.newRequestName === ''}
+                buttonText="创建"
+                buttonColor="green"
+              >
+                <Input
+                  placeholder="名称"
+                  w="100%"
+                  borderRadius={20}
+                  backgroundColor={colorMode === 'light' ? 'white' : undefined}
+                  colorScheme="green"
+                  value={state.newRequestName}
+                  onChange={(e) => setState({ ...state, newRequestName: e.target.value })}
+                  ref={initialRef}
+                />
+              </BasicModal>
+            );
+          case 'newScript':
+            return (
+              <BasicModal
+                isOpen={isOpen}
+                onClose={onCloseClear}
+                initialRef={initialRef}
+                heading="新建脚本"
+                onClick={handleCreateScriptClick}
+                isButtonDisabled={state.newScriptName === ''}
+                buttonText="创建"
+                buttonColor="green"
+              >
+                <Input
+                  placeholder="名称"
+                  w="100%"
+                  borderRadius={20}
+                  backgroundColor={colorMode === 'light' ? 'white' : undefined}
+                  colorScheme="green"
+                  value={state.newScriptName}
+                  onChange={(e) => setState({ ...state, newScriptName: e.target.value })}
+                  ref={initialRef}
+                />
+              </BasicModal>
+            );
+          case 'newCollection':
+            return (
+              <BasicModal
+                isOpen={isOpen}
+                onClose={onCloseClear}
+                initialRef={initialRef}
+                heading="新建集合"
+                onClick={handleCreateCollectionClick}
+                isButtonDisabled={state.name === ''}
+                buttonText="创建"
+                buttonColor="green"
+              >
+                <Tabs
+                  isLazy
+                  colorScheme="green"
+                  display="flex"
+                  flexDirection="column"
+                  maxHeight="100%"
+                  h="100%"
+                >
+                  <TabList>
+                    <Tab>基础</Tab>
+                    <Tab>导入</Tab>
+                  </TabList>
+                  <TabPanels overflowY="auto" sx={{ scrollbarGutter: 'stable' }} h="100%">
+                    <TabPanel>
+                      <Input
+                        placeholder="名称"
+                        w="100%"
+                        my="4"
+                        borderRadius={20}
+                        colorScheme="green"
+                        backgroundColor={colorMode === 'light' ? 'white' : undefined}
+                        value={state.newCollectionName}
+                        onChange={(e) =>
+                          setState({ ...state, newCollectionName: e.target.value })
+                        }
+                        ref={initialRef}
+                      />
+                      <GroupsInput
+                        groups={state.groups}
+                        setGroups={(groups: string[]) =>
+                          setState({
+                            ...state,
+                            groups,
+                          })
+                        }
+                        isRounded
+                      />
+                    </TabPanel>
+                    <TabPanel>
+                      <Select
+                        size="xs"
+                        onChange={(e) =>
+                          setState({ ...state, selectedImport: e.target.value })
+                        }
+                        value={state.selectedImport}
+                      >
+                        <option value="openapi">OpenAPI</option>
+                        <option value="postman">Postman</option>
+                      </Select>
+                      <input
+                        className={cn(styles, 'fileInput', [colorMode])}
+                        type="file"
+                        accept=".yaml,.json"
+                        onChange={(e) => {
+                          const openApiFile = e.target.files
+                            ? e.target.files[0]
+                            : undefined;
+                          setState({
+                            ...state,
+                            uploadFile: openApiFile,
+                            name: openApiFile?.name ?? 'filename',
+                          });
+                        }}
+                      />
+                      {state.selectedImport === 'openapi' ? (
+                        <Input
+                          placeholder="基础路径"
+                          mb="4"
+                          w="100%"
+                          borderRadius={20}
+                          colorScheme="green"
+                          backgroundColor={colorMode === 'light' ? 'white' : undefined}
+                          value={state.basePath}
+                          onChange={(e) =>
+                            setState({ ...state, basePath: e.target.value })
+                          }
+                        />
+                      ) : null}
+                      <GroupsInput
+                        groups={state.groups}
+                        setGroups={(groups: string[]) =>
+                          setState({
+                            ...state,
+                            groups,
+                          })
+                        }
+                        isRounded
+                      />
+                    </TabPanel>
+                  </TabPanels>
+                </Tabs>
+              </BasicModal>
+            );
+          case 'duplicate':
+            return (
+              <BasicModal
+                isOpen={isOpen}
+                onClose={onCloseClear}
+                heading={`Duplicate "${collection.name}"`}
+                onClick={() => {
+                  duplicateCollection(collection.id, state.name);
+                  onCloseClear();
+                }}
+                buttonText="复制"
+                buttonColor="green"
+                isButtonDisabled={false}
+              >
+                <Input
+                  placeholder="名称"
+                  w="100%"
+                  borderRadius={20}
+                  colorScheme="green"
+                  backgroundColor={colorMode === 'light' ? 'white' : undefined}
+                  value={state.name}
+                  onChange={(e) => setState({ ...state, name: e.target.value })}
+                  ref={initialRef}
+                />
+              </BasicModal>
+            );
+          case 'delete':
+            return (
+              <BasicModal
+                isOpen={isOpen}
+                onClose={onCloseClear}
+                heading={`Delete "${collection.name}"`}
+                onClick={handleDeleteCollectionClick}
+                buttonText="删除"
+                buttonColor="red"
+                isButtonDisabled={false}
+              >
+                Are you sure you want to delete this collection?
+                <br />
+                The collection cannot be recovered!
+              </BasicModal>
+            );
+        }
+      })(state.currentModal);
+
+  return (
+    <div
+      ref={ref}
+      data-handler-id={handlerId}
+      className={cn(styles, 'header', [...headerVariants, colorMode]) + ' ' + hoverClass}
+      style={{ boxShadow, opacity }}
+    >
+      {Array(collection.depth).fill(<div className={styles.line} />)}
+      {iconVariants.includes('open') ? (
+        <div
+          className={cn(styles, 'icon-wrapper', [colorMode])}
+          onClick={handleArrowClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleArrowClick();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <VscFolderOpened className={cn(styles, 'icon', [colorMode])} />
+        </div>
+      ) : (
+        <div
+          className={cn(styles, 'icon-wrapper', [colorMode])}
+          onClick={handleArrowClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleArrowClick();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          <VscFolder className={cn(styles, 'icon', [colorMode])} />
+        </div>
+      )}
+      <div
+        className={styles.wrapper}
+        onClick={() => selectCollection.current(collection.id)}
+        onKeyDown={(e) => handleOnKeyDown(e, handleArrowClick)}
+        role="button"
+        tabIndex={0}
+      >
+        <span className={styles.name}>{collection.name}</span>
+        <span className={styles.actionIcon}>
+          <Menu>
+            {({ isOpen }) => (
+              <>
+                <MenuButton
+                  as={IconButton}
+                  aria-label="Options"
+                  icon={<VscEllipsis />}
+                  variant="ghost"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <MenuList
+                  zIndex={50}
+                  style={{
+                    // this is a workaround to fix drag and drop preview not working
+                    // see: https://github.com/chakra-ui/chakra-ui/issues/6762
+                    display: isOpen ? '' : 'none',
+                  }}
+                >
+                  <MenuItem
+                    icon={<AddIcon />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setState({ ...state, currentModal: 'newRestRequest' });
+                      onOpen();
+                    }}
+                  >
+                    New Request
+                  </MenuItem>
+                  <MenuItem
+                    icon={<AddIcon />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setState({ ...state, currentModal: 'newWebsocketRequest' });
+                      onOpen();
+                    }}
+                  >
+                    New Websocket Request
+                  </MenuItem>
+                  <MenuItem
+                    icon={<VscFolder />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setState({ ...state, currentModal: 'newCollection' });
+                      onOpen();
+                    }}
+                  >
+                    New Collection
+                  </MenuItem>
+                  <MenuItem
+                    icon={<VscFileCode />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setState({ ...state, currentModal: 'newScript' });
+                      onOpen();
+                    }}
+                  >
+                    New Job Script
+                  </MenuItem>
+                  <MenuItem
+                    icon={<LinkIcon />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCopy();
+                      successToast('链接已复制', toast);
+                    }}
+                  >
+                    Copy Link
+                  </MenuItem>
+                  <MenuItem
+                    icon={<CopyIcon />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setState({
+                        ...state,
+                        currentModal: 'duplicate',
+                        name: `${collection.name} (copy)`,
+                      });
+
+                      onOpen();
+                    }}
+                  >
+                    Duplicate
+                  </MenuItem>
+
+                  <MenuItem
+                    icon={<DeleteIcon />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setState({ ...state, currentModal: 'delete' });
+                      onOpen();
+                    }}
+                  >
+                    Delete
+                  </MenuItem>
+                </MenuList>
+              </>
+            )}
+          </Menu>
+        </span>
+      </div>
+      {currentModal}
+    </div>
+  );
+}
+
+export default MoveableHeader;

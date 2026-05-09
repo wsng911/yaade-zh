@@ -1,0 +1,23 @@
+.parent {
+  height: 100vh;
+}
+
+.allotment {
+  height: calc(100% - 48px);
+}
+
+.sidebar {
+  height: 100%;
+}
+
+.main {
+  height: 100%;
+}
+
+.requestPanel {
+  height: 100%;
+}
+
+.responsePanel {
+  height: 100%;
+}

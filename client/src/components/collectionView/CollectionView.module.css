@@ -1,0 +1,12 @@
+.requests {
+  display: none;
+}
+
+.requests--open {
+  display: block;
+}
+
+.hovered {
+  outline: 1px solid var(--chakra-colors-green-500) !important;
+  outline-offset: -1px;
+}

@@ -1,0 +1,15 @@
+.container {
+  padding-left: 16px;
+  padding-right: 16px;
+  display: flex;
+  align-items: center;
+  height: 48px;
+}
+
+.buttons {
+  margin-left: auto;
+}
+
+.img {
+  height: 32px;
+}

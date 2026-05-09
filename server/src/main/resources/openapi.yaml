@@ -1,0 +1,1202 @@
+openapi: 3.0.0
+info:
+  title: Yaade OpenAPI
+  version: 1.0.0
+  license:
+    name: MIT
+paths:
+  /api/health:
+    get:
+      tags:
+        - Health
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+          description: Success
+      operationId: health
+      summary: Check if the server is running
+  /api/collection:
+    get:
+      tags:
+        - Collections
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collections"
+          description: Success
+      operationId: getAllCollections
+      summary: Get all collections
+    put:
+      requestBody:
+        description: The updated collection
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Collection"
+        required: true
+      tags:
+        - Collections
+      responses:
+        "200":
+          description: Success
+      operationId: putCollection
+      summary: Update a collection
+    post:
+      requestBody:
+        description: A new collection
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCollectionRequest"
+        required: true
+      tags:
+        - Collections
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+          description: Success
+      operationId: postCollection
+      summary: Create a collection
+  "/api/collection/{id}":
+    delete:
+      tags:
+        - Collections
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+      responses:
+        "200":
+          description: Success
+      operationId: deleteCollection
+      summary: Delete a collection
+  "/api/collection/{id}/move":
+    post:
+      tags:
+        - Collections
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveCollectionRequest"
+      responses:
+        "200":
+          description: Success
+      operationId: moveCollection
+      summary: Move collection
+  /api/collection/{id}/duplicate:
+    post:
+      tags:
+        - Collections
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveCollectionRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+          description: Success
+      operationId: duplicateCollection
+      summary: Duplicate a collection
+  /api/collection/importOpenApi:
+    post:
+      tags:
+        - Import
+      parameters:
+        - name: basePath
+          description: The basePath of the OpenAPI file
+          schema:
+            type: string
+          in: query
+        - name: groups
+          description: The groups for the collection
+          schema:
+            type: string
+          in: query
+        - name: parentId
+          description: The parent id of the new collection
+          schema:
+            type: integer
+          in: query
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+          description: Success
+      operationId: importOpenApi
+      summary: Import a collection from an OpenAPI file
+  /api/collection/importPostman:
+    post:
+      tags:
+        - Import
+      parameters:
+        - name: groups
+          description: The groups for the collection
+          schema:
+            type: string
+          in: query
+        - name: parentId
+          description: The parent id of the new collection
+          schema:
+            type: integer
+          in: query
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+          description: Success
+      operationId: importPostman
+      summary: Import a collection from a Postman collection file
+  /api/request:
+    put:
+      requestBody:
+        description: The new request
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Request"
+        required: true
+      tags:
+        - Collections
+      responses:
+        "200":
+          description: Success
+      operationId: putRequest
+      summary: Update a request
+    post:
+      requestBody:
+        description: A new request
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRequestRequest"
+        required: true
+      tags:
+        - Collections
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Request"
+          description: Success
+      operationId: postRequest
+      summary: Creata a new request
+  "/api/request/{id}":
+    delete:
+      tags:
+        - Collections
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+      responses:
+        "200":
+          description: Success
+      operationId: deleteRequest
+      summary: Delete a request
+  /api/request/{id}/move:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveScriptRequest"
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+      tags:
+        - Collections
+      responses:
+        "200":
+          description: Success
+      operationId: moveRequest
+      summary: Move request
+  /api/login:
+    get:
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Success
+      operationId: doLoginExt
+      summary: Login using External provider
+    post:
+      requestBody:
+        description: Credentials
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      tags:
+        - Authentication
+      responses:
+        "200":
+          description: Success
+      operationId: doLogin
+      summary: Login
+  /api/logout:
+    post:
+      tags:
+        - Autehntication
+      responses:
+        "200":
+          description: Success
+      operationId: doLogout
+      summary: Login
+  /api/user:
+    get:
+      tags:
+        - Users
+      responses:
+        "200":
+          description: Success
+      operationId: getCurrentUser
+      summary: Get the current user
+    put:
+      requestBody:
+        description: New and current password
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+        required: true
+      tags:
+        - Users
+      responses:
+        "200":
+          description: Success
+      operationId: changeUserPassword
+      summary: Change user password
+  /api/user/exportBackup:
+    get:
+      tags:
+        - Admin
+      responses:
+        "200":
+          description: Success
+      operationId: exportBackup
+      summary: Export a backup of the database
+      description: can only be invoked by admin
+  /api/user/importBackup:
+    post:
+      tags:
+        - Admin
+      responses:
+        "200":
+          description: Success
+      operationId: importBackup
+      summary: Import a backup file
+      description: can only be invoked by admin
+  /api/user/changeSetting:
+    put:
+      requestBody:
+        description: The new setting key-value pair
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeSettingRequest"
+        required: true
+      tags:
+        - Users
+      responses:
+        "200":
+          description: Success
+      operationId: changeSetting
+      summary: Change a value of the user settings
+  /api/users:
+    get:
+      tags:
+        - Users
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { }
+          description: Success
+      operationId: getUsers
+      summary: get user list
+      description: can only be invoked by admin
+    post:
+      requestBody:
+        content:
+          application/json: { }
+        required: true
+      tags:
+        - Users
+      responses:
+        "200":
+          content:
+            application/json: { }
+          description: Success
+      operationId: createUser
+      summary: create user
+      description: "username must be unique, can only be invoked by admin"
+  "/api/users/{userId}/resetpassword":
+    put:
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          schema:
+            type: integer
+          in: path
+          required: true
+      responses:
+        "200":
+          content:
+            application/json: { }
+          description: Success
+      operationId: resetUserPassword
+      summary: reset user password
+      description: can only invoked by admin
+  "/api/users/{userId}":
+    get:
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          schema:
+            type: integer
+          in: path
+          required: true
+      responses:
+        "200":
+          content:
+            application/json: { }
+          description: Success
+      operationId: getUser
+      summary: get user
+      description: can only invoked by admin
+    put:
+      requestBody:
+        content:
+          application/json: { }
+        required: true
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          schema:
+            type: integer
+          in: path
+          required: true
+      responses:
+        "200":
+          description: Success
+      operationId: updateUser
+      summary: update user
+    delete:
+      tags:
+        - Users
+      parameters:
+        - name: userId
+          schema:
+            type: integer
+          in: path
+          required: true
+      responses:
+        "200":
+          description: Success
+      operationId: deleteUser
+      summary: delete user
+  "/api/collection/{id}/envs/{env}":
+    post:
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+        - name: env
+          schema:
+            type: string
+          in: path
+          required: true
+      responses:
+        "200":
+          description: success
+      operationId: createEnv
+      summary: create a new environment
+    put:
+      requestBody:
+        content:
+          application/json: { }
+        required: true
+      tags:
+        - Environments
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+        - name: env
+          schema:
+            type: string
+          in: path
+          required: true
+      responses:
+        "200":
+          description: success
+      operationId: updateEnv
+      summary: update the environment
+    delete:
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+        - name: env
+          schema:
+            type: string
+          in: path
+          required: true
+      responses:
+        "200":
+          description: success
+      operationId: deleteEnv
+      summary: delete environment
+  "/api/config/{name}":
+    get:
+      tags:
+        - Admin
+      parameters:
+        - name: name
+          schema:
+            type: string
+          in: path
+          required: true
+      responses:
+        "200":
+          content:
+            application/json: { }
+          description: success
+      operationId: getConfig
+      summary: Get a specific config by its name
+    put:
+      tags:
+        - Config
+        - Admin
+      parameters:
+        - name: name
+          schema:
+            type: string
+          in: path
+          required: true
+      requestBody:
+        content:
+          application/json: { }
+        required: true
+      responses:
+        "200":
+          description: success
+      operationId: setConfig
+      summary: Set a specific config by its name
+  "/api/loginProviders":
+    get:
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Success
+      operationId: getLoginProviders
+      summary: Get the configured external login providers
+  '/api/collection/{id}/envs/{env}/secrets/{key}':
+    put:
+      requestBody:
+        content:
+          application/json: { }
+        required: true
+      tags:
+        - Environments
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+        - name: env
+          schema:
+            type: string
+          in: path
+          required: true
+        - name: key
+          schema:
+            type: string
+          in: path
+          required: true
+      responses:
+        '200':
+          description: Success
+      operationId: setSecret
+      summary: Set a specific secret
+    delete:
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+        - name: env
+          schema:
+            type: string
+          in: path
+          required: true
+        - name: key
+          schema:
+            type: string
+          in: path
+          required: true
+      responses:
+        '200':
+          description: success
+      operationId: deleteSecret
+      summary: Delete a specific secret
+  /api/invoke:
+    post:
+      requestBody:
+        description: exec a request
+        content:
+          application/json: { }
+        required: true
+      tags:
+        - Invoke
+      responses:
+        '200':
+          description: Success
+      operationId: invoke
+      summary: Invoke a request
+  /api/certificates:
+    get:
+      tags:
+        - Certificates
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCertificatesResponse"
+      operationId: getCertificates
+      summary: Get all certificates
+    post:
+      requestBody:
+        description: A new certificate
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CreateCertificateRequest"
+        required: true
+      tags:
+        - Certificates
+      responses:
+        '200':
+          description: Success
+      operationId: createCertificate
+      summary: Create a certificate
+  /api/certificates/{id}:
+    delete:
+      tags:
+        - Certificates
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+      responses:
+        '200':
+          description: Success
+      operationId: deleteCertificate
+      summary: Delete a certificate
+  /api/oauth2/token:
+    post:
+      tags:
+        - Authentication
+      summary: Exchange authorization code for access token
+      operationId: exchangeToken
+      requestBody:
+        description: Authorization code and token URL
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tokenUrl
+                - data
+              properties:
+                tokenUrl:
+                  type: string
+                data:
+                  type: string
+      responses:
+        '200':
+          description: Success
+  /api/files:
+    get:
+      tags:
+        - Files
+      summary: Get a list of file descriptions.
+      operationId: getFiles
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileDescription"
+    post:
+      tags:
+        - Files
+      summary: Upload a file
+      operationId: uploadFile
+      requestBody:
+        description: The file to upload
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/UploadFileRequest"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                properties:
+                  id:
+                    type: string
+  /api/files/{id}:
+    get:
+      tags:
+        - Files
+      summary: Download a file
+      operationId: downloadFile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+    delete:
+      tags:
+        - Files
+      summary: Delete a file
+      operationId: deleteFile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+  /api/scripts:
+    post:
+      tags:
+        - Scripts
+      summary: Create a new script
+      operationId: createScript
+      requestBody:
+        description: The script to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScriptRequest"
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Script"
+    put:
+      tags:
+        - Scripts
+      summary: Update a script
+      operationId: updateScript
+      requestBody:
+        description: The updated script
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Script"
+      responses:
+        '200':
+          description: Success
+  /api/scripts/{id}:
+    get:
+      tags:
+        - Scripts
+      summary: Get a script
+      operationId: getScript
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Script"
+    delete:
+      tags:
+        - Scripts
+      summary: Delete a script
+      operationId: deleteScript
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+  /api/scripts/{id}/move:
+    post:
+      tags:
+        - Scripts
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MoveScriptRequest"
+      responses:
+        "200":
+          description: Success
+      operationId: moveScript
+      summary: Move script
+  /api/scripts/{id}/take-ownership:
+    post:
+      tags:
+        - Scripts
+      parameters:
+        - name: id
+          schema:
+            type: integer
+          in: path
+          required: true
+      responses:
+        "200":
+          description: Success
+      operationId: takeScriptOwnership
+      summary: Take script ownership
+  /api/run-script:
+    post:
+      tags:
+        - Scripts
+      summary: Run a script
+      operationId: runScript
+      requestBody:
+        content:
+          application/json: { }
+        required: true
+      responses:
+        '200':
+          description: Success
+  /api/accessTokens:
+    get:
+      tags:
+        - AccessToken
+      summary: Get the access tokens for the current user
+      operationId: getAccessTokens
+      responses:
+        '200':
+          description: Success
+    post:
+      tags:
+        - AccessToken
+      summary: Create a new access token
+      operationId: createAccessToken
+      requestBody:
+        description: The access token to create
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - createdAt
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Success
+  /api/accessTokens/{id}:
+    delete:
+      tags:
+        - AccessToken
+      summary: Delete an access token
+      operationId: deleteAccessToken
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Success
+  /api/v1/list-scripts:
+    get:
+      tags:
+        - Scripts
+      summary: List all scripts the token can execute
+      operationId: tokenListScripts
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/scripts/{id}/run:
+    post:
+      tags:
+        - Scripts
+      summary: Run a script
+      operationId: tokenRunScript
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: env
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        description: The data to run the script with
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                additionalEnvData:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - key
+                      - value
+                    properties:
+                      key:
+                        type: string
+                      value:
+                        type: string
+      responses:
+        '200':
+          description: Success
+
+components:
+  schemas:
+    HealthResponse:
+      required:
+        - status
+        - version
+      type: object
+    Request:
+      required:
+        - id
+        - collectionId
+        - data
+      type: object
+      properties:
+        id:
+          format: int64
+          type: integer
+        collectionId:
+          format: int64
+          type: integer
+        data:
+          type: object
+    Collection:
+      required:
+        - id
+        - data
+      type: object
+      properties:
+        id:
+          format: int64
+          type: integer
+        version:
+          type: string
+        data:
+          type: object
+    Collections:
+      type: array
+      items:
+        $ref: "#/components/schemas/Collection"
+    CreateCollectionRequest:
+      required:
+        - name
+        - groups
+      type: object
+      properties:
+        name:
+          type: string
+    CreateRequestRequest:
+      required:
+        - collectionId
+        - type
+      type: object
+      properties:
+        collectionId:
+          format: int64
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+    LoginRequest:
+      required:
+        - username
+        - password
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+    ChangePasswordRequest:
+      required:
+        - currentPassword
+        - newPassword
+      type: object
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+    ChangeSettingRequest:
+      required:
+        - key
+        - value
+      type: object
+      properties:
+        key:
+          type: string
+    InvokeRequest:
+      description: ''
+      required:
+        - request
+      type: object
+      properties:
+        request:
+          $ref: '#/components/schemas/Request'
+          description: ''
+        env:
+          description: ''
+    MoveRequestRequest:
+      type: object
+      properties:
+        newRank:
+          format: int64
+          type: integer
+          description: |
+            The new rank of the request. If set, the newCollectionId field will be ignored 
+            and the request will be moved to the new rank in the same collection.
+        newCollectionId:
+          format: int64
+          type: integer
+          description: |
+            The new collection id of the request. If set, the newRank field will be ignored 
+            and the request will be appended to the list of requests in the target collection.
+    MoveCollectionRequest:
+      type: object
+      properties:
+        newRank:
+          format: int64
+          type: integer
+          description: The new rank of the collection.
+        newParentId:
+          format: int64
+          type: integer
+          description: The new parent id of the collection.
+    DuplicateCollectionRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The name of the new collection.
+    MoveScriptRequest:
+      type: object
+      properties:
+        newRank:
+          format: int64
+          type: integer
+          description: The new rank of the script.
+        newCollectionId:
+          format: int64
+          type: integer
+          description: The new collection id of the script.
+    Certificate:
+      required:
+        - id
+        - data
+      type: object
+      properties:
+        id:
+          format: int64
+          type: integer
+        data:
+          type: object
+          required:
+            - host
+            - type
+            - groups
+          properties:
+            host:
+              type: string
+            type:
+              type: string
+            groups:
+              type: array
+              items:
+                type: string
+    GetCertificatesResponse:
+      type: object
+      required:
+        - certificates
+      properties:
+        certificates:
+          type: array
+          items:
+            $ref: '#/components/schemas/Certificate'
+    CreateCertificateRequest:
+      type: object
+      required:
+        - host
+        - type
+      properties:
+        host:
+          type: string
+        type:
+          type: string
+        groups:
+          type: string
+        pemCert:
+          type: string
+        pemKey:
+          type: string
+    UploadFileRequest:
+      type: object
+      properties:
+        file:
+          type: string
+        groups:
+          type: string
+    FileDescription:
+      type: object
+      required:
+        - files
+      properties:
+        files:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - name
+              - data
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              data:
+                type: object
+                properties:
+                  groups:
+                    type: array
+                    items:
+                      type: string
+    CreateScriptRequest:
+      type: object
+      required:
+        - collectionId
+      properties:
+        collectionId:
+          type: integer
+    Script:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: integer
+        collectionId:
+          type: integer
+        data:
+          type: object

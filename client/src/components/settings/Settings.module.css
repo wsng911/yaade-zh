@@ -1,0 +1,9 @@
+.container {
+  display: flex;
+  height: 680px;
+}
+
+.tabListWrapper {
+  width: 250px;
+  padding: 1rem;
+}

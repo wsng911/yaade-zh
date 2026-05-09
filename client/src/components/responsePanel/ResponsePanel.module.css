@@ -1,0 +1,25 @@
+.container {
+  height: 100%;
+  padding: 1rem 1rem 0 1rem;
+}
+
+.tabList {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tabList--light {
+  border-bottom: 2px solid var(--chakra-colors-gray-200);
+}
+
+.tabList--dark {
+  border-bottom: 2px solid var(--chakra-colors-gray-700);
+}
+
+.statusText {
+  margin-left: 1rem;
+  margin-right: 1rem;
+  color: var(--chakra-colors-green-500);
+  font-weight: 700;
+}

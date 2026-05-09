@@ -1,0 +1,99 @@
+import {
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
+  useColorMode,
+  useDisclosure,
+  useToast,
+} from '@chakra-ui/react';
+import { FunctionComponent, useEffect, useState } from 'react';
+
+import User from '../../../model/User';
+import { BASE_PATH, errorToast } from '../../../utils';
+import SettingsTab from '../settingsTab';
+import ExternalProviderTab from './providerTabs/ExternalProviderTab';
+import LocalProviderTab from './providerTabs/LocalProviderTab';
+
+interface Provider {
+  id: string;
+  provider: string;
+  params: any;
+  fields: any;
+}
+
+interface AuthConfig {
+  providers: Provider[];
+}
+
+type UserSettingsState = {
+  users: User[];
+};
+
+const UserSettings: FunctionComponent = () => {
+  const [state, setState] = useState<UserSettingsState>({
+    users: [],
+  });
+
+  const toast = useToast();
+
+  useEffect(() => {
+    const getUsers = async () => {
+      try {
+        const res = await fetch(BASE_PATH + 'api/users');
+        const users = await res.json();
+        setState((s) => {
+          return { ...s, users };
+        });
+      } catch (e) {
+        errorToast('获取用户列表失败', toast);
+      }
+    };
+    getUsers();
+  }, []);
+
+  function setUsers(users: User[]) {
+    setState((s) => {
+      return { ...s, users };
+    });
+  }
+
+  function getLocalUsers() {
+    // NOTE: this regex matches any <provider>$<username>, negate it to get all local users
+    const re = /^.*\$.*$/;
+    return state.users.filter((user) => !user.username.match(re));
+  }
+
+  return (
+    <SettingsTab name="用户">
+      <Tabs
+        isLazy
+        colorScheme="green"
+        mt="1"
+        display="flex"
+        flexDirection="column"
+        maxHeight="100%"
+        h="100%"
+        mb="4"
+      >
+        <TabList>
+          <Tab>本地</Tab>
+          <Tab>External</Tab>
+        </TabList>
+        <TabPanels overflowY="auto" sx={{ scrollbarGutter: 'stable' }} h="100%">
+          <TabPanel>
+            <LocalProviderTab users={getLocalUsers()} setUsers={setUsers} />
+          </TabPanel>
+          <TabPanel h="100%">
+            <ExternalProviderTab />
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
+    </SettingsTab>
+  );
+};
+
+export type { AuthConfig, Provider };
+
+export default UserSettings;
